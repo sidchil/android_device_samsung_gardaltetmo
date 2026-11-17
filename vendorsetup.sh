@@ -1,0 +1,3 @@
+add_lunch_combo lineage_gardaltetmo-eng
+add_lunch_combo lineage_gardaltetmo-user
+add_lunch_combo lineage_gardaltetmo-userdebug
