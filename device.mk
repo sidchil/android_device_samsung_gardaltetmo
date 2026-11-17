@@ -134,8 +134,8 @@ PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
 PRODUCT_PACKAGES += \
     SamsungDoze
 
-# TODO: T399 has 1 GB RAM; pick a smaller dalvik heap config than the S5 Mini's 2048 one
-$(call inherit-product-if-exists, frameworks/native/build/phone-xhdpi-2048-dalvik-heap.mk)
+# T399 has 1 GB RAM / hdpi: heap values match stock (5m/64m/128m)
+$(call inherit-product-if-exists, frameworks/native/build/phone-hdpi-512-dalvik-heap.mk)
 
 # Inherit from smdk3470-common
 $(call inherit-product, device/samsung/smdk3470-common/smdk3470-common.mk)

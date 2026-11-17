@@ -62,11 +62,9 @@ void vendor_load_properties()
         return;
     }
 
-    /* TODO: set the real T399 values. Get them from the phone:
-     *   adb shell getprop ro.build.fingerprint
-     *   adb shell getprop ro.build.description
-     *   adb shell getprop ro.product.model
-     * Only add overrides here once those are known; none are set for now. */
+    property_override("ro.product.model", "SGH-T399");
+    property_override("ro.build.fingerprint", "samsung/gardaltetmo/gardaltetmo:4.2.2/JDQ39/T399UVUAQE1:user/release-keys");
+    property_override("ro.build.description", "gardaltetmo-user 4.2.2 JDQ39 T399UVUAQE1 release-keys");
     (void)bootloader;
 
     std::string device = android::base::GetProperty("ro.product.device", "");
