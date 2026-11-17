@@ -66,10 +66,9 @@ PRODUCT_PACKAGES += \
     android.hardware.ir@1.0-impl \
     android.hardware.ir@1.0-service
 
-# Sensors
+# Sensors (T399 uses its stock sensors.universal_garda.so blob; no gyro/heart-rate)
 PRODUCT_PACKAGES += \
-    android.hardware.sensors@1.0-impl \
-    sensors.universal_garda
+    android.hardware.sensors@1.0-impl
 
 # Vibrator
 PRODUCT_PACKAGES += \
@@ -111,12 +110,7 @@ PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.sensor.accelerometer.xml:system/vendor/etc/permissions/android.hardware.sensor.accelerometer.xml \
     frameworks/native/data/etc/android.hardware.sensor.compass.xml:system/vendor/etc/permissions/android.hardware.sensor.compass.xml \
     frameworks/native/data/etc/android.hardware.sensor.proximity.xml:system/vendor/etc/permissions/android.hardware.sensor.proximity.xml \
-    frameworks/native/data/etc/android.hardware.sensor.gyroscope.xml:system/vendor/etc/permissions/android.hardware.sensor.gyroscope.xml \
-    frameworks/native/data/etc/android.hardware.sensor.light.xml:system/vendor/etc/permissions/android.hardware.sensor.light.xml \
-    frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:system/vendor/etc/permissions/android.hardware.sensor.stepdetector.xml \
-    frameworks/native/data/etc/android.hardware.sensor.stepcounter.xml:system/vendor/etc/permissions/android.hardware.sensor.stepcounter.xml \
-    frameworks/native/data/etc/android.hardware.sensor.heartrate.ecg.xml:system/vendor/etc/permissions/android.hardware.sensor.heartrate.ecg.xml \
-    frameworks/native/data/etc/android.hardware.sensor.heartrate.xml:system/vendor/etc/permissions/android.hardware.sensor.heartrate.xml
+    frameworks/native/data/etc/android.hardware.sensor.light.xml:system/vendor/etc/permissions/android.hardware.sensor.light.xml
 
 # Extended settings
 PRODUCT_PACKAGES += \
