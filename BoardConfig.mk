@@ -51,9 +51,9 @@ BOARD_MKBOOTIMG_ARGS := --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 -
 # Kernel: prebuilt CM12 (3.4.39+) zImage taken from a CM12 build that boots on this phone.
 # Our own build from source (kernel/samsung/gardaltetmo, garda_defconfig) did not boot yet.
 # To go back to building it, comment out the PREBUILT line and uncomment the two SOURCE lines.
-TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/zImage
-#TARGET_KERNEL_SOURCE := kernel/samsung/gardaltetmo
-#TARGET_KERNEL_CONFIG := garda_defconfig
+#TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/zImage
+TARGET_KERNEL_SOURCE := kernel/samsung/gardaltetmo
+TARGET_KERNEL_CONFIG := garda_defconfig
 # The CM12 kernel has SELinux built in; run permissive for first boots. The hardware name
 # must be given here because Android 8.1 init no longer reads it from /proc/cpuinfo.
 BOARD_KERNEL_CMDLINE := androidboot.selinux=permissive androidboot.hardware=universal_garda
