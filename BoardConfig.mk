@@ -114,3 +114,6 @@ TW_NO_LEGACY_PROPS := true
 # SELinux
 BOARD_SEPOLICY_DIRS := \
 	$(DEVICE_PATH)/sepolicy
+
+# The CM12 kernel's SELinux only supports policy versions up to 26 (Android 8.1 defaults to 30)
+POLICYVERS := 26
