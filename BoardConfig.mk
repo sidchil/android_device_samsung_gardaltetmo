@@ -48,10 +48,15 @@ TARGET_SPECIFIC_HEADER_PATH += $(DEVICE_PATH)/include
 # Boot image header taken from the stock T399 boot.img (T399UVUAQE1):
 #   base 0x10000000 (set in smdk3470-common), page size 2048, empty cmdline.
 BOARD_MKBOOTIMG_ARGS := --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 --second_offset 0x00f00000 --tags_offset 0x00000100
-# Kernel is built from source: the cm-3470 kminilte 3.4.x kernel with the garda machine
-# (see kernel/README.md). Wi-Fi (bcmdhd) is built in; the config has CONFIG_MODULES off.
-TARGET_KERNEL_SOURCE := kernel/samsung/gardaltetmo
-TARGET_KERNEL_CONFIG := garda_defconfig
+# Kernel: prebuilt CM12 (3.4.39+) zImage taken from a CM12 build that boots on this phone.
+# Our own build from source (kernel/samsung/gardaltetmo, garda_defconfig) did not boot yet.
+# To go back to building it, comment out the PREBUILT line and uncomment the two SOURCE lines.
+TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/zImage
+#TARGET_KERNEL_SOURCE := kernel/samsung/gardaltetmo
+#TARGET_KERNEL_CONFIG := garda_defconfig
+# The CM12 kernel has SELinux built in; run permissive for first boots. The hardware name
+# must be given here because Android 8.1 init no longer reads it from /proc/cpuinfo.
+BOARD_KERNEL_CMDLINE := androidboot.selinux=permissive androidboot.hardware=universal_garda
 
 # Lineage Hardware
 BOARD_HARDWARE_CLASS := $(DEVICE_PATH)/lineagehw
