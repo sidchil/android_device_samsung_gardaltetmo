@@ -32,3 +32,5 @@ ro.sys.sdcardfs=false
 
 # Stock HAL1 expects the heap fd back via get_memory()'s user argument (Samsung 4.2 framework behaviour)
 ro.camera.legacy.heap_fd_to_user=true
+# Stock HAL1 records only in Samsung kMetadataBufferTypeCameraSource format; bridge it to YUV
+ro.camera.legacy.samsung_metadata_bridge=true

@@ -128,7 +128,15 @@ TARGET_LD_SHIM_LIBS += \
     /system/lib/libExynosIPService.so|/system/lib/libshim_garda.so \
     /system/lib/libMali.so|/system/lib/libshim_mali.so \
     /system/lib/hw/audio.primary.universal_garda.so|/system/lib/libshim_audio.so \
-    /system/vendor/lib/hw/camera.exynos3.so|/system/lib/libshim_camera.so
+    /system/vendor/lib/hw/camera.exynos3.so|/system/lib/libshim_camera.so \
+    /system/lib/omx/libOMX.Exynos.AVC.Decoder.so|/system/lib/libshim_omx.so \
+    /system/lib/omx/libOMX.Exynos.AVC.Encoder.so|/system/lib/libshim_omx.so \
+    /system/lib/omx/libOMX.Exynos.MPEG4.Decoder.so|/system/lib/libshim_omx.so \
+    /system/lib/omx/libOMX.Exynos.MPEG4.Encoder.so|/system/lib/libshim_omx.so \
+    /system/lib/omx/libOMX.Exynos.WMV.Decoder.so|/system/lib/libshim_omx.so
 
 # Legacy blobs (lib_Samsung_Resampler.so) contain text relocations
 TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS := true
+
+# HAL1 camera recording: CameraSource feeds native-handle metadata in shared memory
+TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE := true
