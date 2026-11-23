@@ -133,7 +133,8 @@ TARGET_LD_SHIM_LIBS += \
     /system/lib/omx/libOMX.Exynos.AVC.Encoder.so|/system/lib/libshim_omx.so \
     /system/lib/omx/libOMX.Exynos.MPEG4.Decoder.so|/system/lib/libshim_omx.so \
     /system/lib/omx/libOMX.Exynos.MPEG4.Encoder.so|/system/lib/libshim_omx.so \
-    /system/lib/omx/libOMX.Exynos.WMV.Decoder.so|/system/lib/libshim_omx.so
+    /system/lib/omx/libOMX.Exynos.WMV.Decoder.so|/system/lib/libshim_omx.so \
+    /system/bin/gpsd|/system/lib/libshim_gps.so
 
 # Legacy blobs (lib_Samsung_Resampler.so) contain text relocations
 TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS := true

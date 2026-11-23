@@ -503,7 +503,6 @@ service mobicore /system/bin/mcDriverDaemon -r /system/app/FFFFFFFF0000000000000
 
 # GPS
 service gpsd /system/bin/gpsd -c /system/etc/gps.xml
-    disabled
     class main
     user gps
     group system wakelock inet net_raw

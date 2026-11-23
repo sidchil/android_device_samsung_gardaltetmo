@@ -43,5 +43,13 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 include $(BUILD_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := gps_shim.cpp
+LOCAL_SHARED_LIBRARIES := libsensor libutils liblog libssl libcrypto
+LOCAL_MODULE := libshim_gps
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+include $(BUILD_SHARED_LIBRARY)
+
 include $(SHIM_COMMON)/libui/Android.mk
 include $(SHIM_COMMON)/libExynosOMX/Android.mk
