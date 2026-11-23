@@ -34,3 +34,6 @@ ro.sys.sdcardfs=false
 ro.camera.legacy.heap_fd_to_user=true
 # Stock HAL1 records only in Samsung kMetadataBufferTypeCameraSource format; bridge it to YUV
 ro.camera.legacy.samsung_metadata_bridge=true
+
+# 1 GB RAM (780 MB usable): Android low-RAM device mode
+ro.config.low_ram=true

@@ -28,6 +28,7 @@
 #define TOUCHKEY_POWER "/sys/class/sec/sec_touchkey/input/enabled"
 #define TOUCHSCREEN_POWER "/sys/class/sec/tsp/input/enabled"
 #define BATT_LCD_POWER "/sys/class/power_supply/battery/lcd"
+#define BOOSTPULSE_PATH "/sys/devices/system/cpu/cpufreq/interactive/boostpulse"
 
 static void sysfs_write(char *path, char *s) {
     char buf[80];
@@ -64,6 +65,12 @@ static void power_set_interactive(struct power_module *module, int on)
 static void power_hint(struct power_module *module, power_hint_t hint,
                        void *data) {
     switch (hint) {
+    case POWER_HINT_INTERACTION:
+    case POWER_HINT_LAUNCH:
+        /* Ramp to hispeed_freq right away for touches/app starts, so the
+         * first frames don't render at the 400 MHz idle clock. */
+        sysfs_write(BOOSTPULSE_PATH, "1");
+        break;
     default:
         break;
     }

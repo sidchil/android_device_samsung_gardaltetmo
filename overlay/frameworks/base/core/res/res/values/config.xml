@@ -265,4 +265,14 @@
     <!-- enable doze powersaving mode -->
     <bool name="config_enableAutoPowerModes">true</bool>
 
+
+    <!-- T399: DC vibration motor needs ~25-30 ms to spin up; AOSP pulses are too short -->
+    <integer-array name="config_virtualKeyVibePattern">
+        <item>0</item>
+        <item>30</item>
+    </integer-array>
+    <integer-array name="config_longPressVibePattern">
+        <item>0</item>
+        <item>40</item>
+    </integer-array>
 </resources>

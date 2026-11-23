@@ -492,6 +492,7 @@ on property:sys.mobicoredaemon.enable=true
 
 # MobiCore startup
 service mobicore /system/bin/mcDriverDaemon -r /system/app/FFFFFFFF000000000000000000000001.drbin -r /system/app/mcRegistry/ffffffffd0000000000000000000000a.tlbin
+    disabled
     class core
     user system
     group system
@@ -581,18 +582,10 @@ service charger /charger
     seclabel u:r:charger:s0
 
 # SSWAP
-service swapon /sbin/sswap -s -f 1024
-    class core
-    user root
-    group root
-#    seclabel u:r:sswap:s0
-    oneshot
 
 
 # --- temporary debug: save logcat to /cache so TWRP can read it ---
-on post-fs
-    start bootlog
-    start bootsync
+# (not started by default; for debugging: setprop ctl.start bootlog / bootsync)
 
 service bootlog /system/bin/logcat -b all -v threadtime -f /cache/boot_logcat.txt -r 8192 -n 2
     user root
@@ -602,3 +595,27 @@ service bootlog /system/bin/logcat -b all -v threadtime -f /cache/boot_logcat.tx
 service bootsync /system/bin/sh -c "while true; do sleep 2; sync; done"
     user root
     disabled
+
+
+on property:sys.boot_completed=1
+    start t399swap
+    # T399 interactive governor: favour responsiveness (stock values sat at
+    # 400 MHz and only reached hispeed at 99% load)
+    write /sys/devices/system/cpu/cpufreq/interactive/hispeed_freq 1000000
+    write /sys/devices/system/cpu/cpufreq/interactive/go_hispeed_load 85
+    write /sys/devices/system/cpu/cpufreq/interactive/target_loads "70 1000000:80 1300000:90"
+    write /sys/devices/system/cpu/cpufreq/interactive/above_hispeed_delay 40000
+    write /sys/devices/system/cpu/cpufreq/interactive/min_sample_time 60000
+    write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 200000
+    chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+    chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
+    # Broken for now (crash loop every few seconds, open items): keep them off
+    stop ril-daemon
+
+
+service t399swap /system/bin/sh /sbin/t399swap.sh
+    user root
+    group root
+    disabled
+    oneshot
+    seclabel u:r:su:s0
