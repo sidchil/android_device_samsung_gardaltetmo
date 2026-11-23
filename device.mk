@@ -133,5 +133,5 @@ $(call inherit-product-if-exists, frameworks/native/build/phone-hdpi-512-dalvik-
 
 # Inherit from smdk3470-common
 $(call inherit-product, device/samsung/smdk3470-common/smdk3470-common.mk)
-PRODUCT_PACKAGES += libshim_garda
+PRODUCT_PACKAGES += libshim_garda libshim_mali
 PRODUCT_PACKAGES += sensors.garda

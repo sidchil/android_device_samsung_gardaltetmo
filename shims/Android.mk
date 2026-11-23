@@ -10,5 +10,13 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 include $(BUILD_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := mali_pthread.c
+LOCAL_SHARED_LIBRARIES := liblog
+LOCAL_MODULE := libshim_mali
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+include $(BUILD_SHARED_LIBRARY)
+
 include $(SHIM_COMMON)/libui/Android.mk
 include $(SHIM_COMMON)/libExynosOMX/Android.mk
