@@ -17,6 +17,8 @@
 
 package org.lineageos.hardware;
 
+import java.io.File;
+
 import org.lineageos.internal.util.FileUtils;
 
 /*
@@ -33,11 +35,12 @@ public class KeyDisabler {
     private static String CONTROL_PATH = "/sys/class/sec/sec_touchkey/input/enabled";
 
     public static boolean isSupported() {
-        return true;
+        // The T399 Melfas touch driver has no "enabled" node for the keys.
+        return new File(CONTROL_PATH).exists();
     }
 
     public static boolean isActive() {
-        return (FileUtils.readOneLine(CONTROL_PATH).equals("0"));
+        return "0".equals(FileUtils.readOneLine(CONTROL_PATH));
     }
 
     public static boolean setActive(boolean state) {

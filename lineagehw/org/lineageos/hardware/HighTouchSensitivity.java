@@ -73,7 +73,9 @@ public class HighTouchSensitivity {
         }
         return false;
         */
-        return true;
+        // T399: the Melfas (mms134s) driver implements neither glove_mode
+        // nor hover_enable, so the feature is not available.
+        return false;
     }
 
     /** This method returns the current activation status of high touch sensitivity
@@ -82,7 +84,7 @@ public class HighTouchSensitivity {
      * or the operation failed while reading the status; true in any other case.
      */
     public static boolean isEnabled() {
-        return FileUtils.readOneLine(COMMAND_RESULT_PATH).equals(GLOVE_MODE_ENABLE + STATUS_OK);
+        return FileUtils.readOneLine(COMMAND_RESULT_PATH) != null && FileUtils.readOneLine(COMMAND_RESULT_PATH).equals(GLOVE_MODE_ENABLE + STATUS_OK);
     }
 
     /**
