@@ -609,8 +609,6 @@ on property:sys.boot_completed=1
     write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 200000
     chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
     chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
-    # Broken for now (crash loop every few seconds, open items): keep them off
-    stop ril-daemon
 
 
 service t399swap /system/bin/sh /sbin/t399swap.sh

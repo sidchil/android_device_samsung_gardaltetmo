@@ -3,7 +3,7 @@ SHIM_COMMON := $(LOCAL_PATH)/../../smdk3470-common/libshims
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := shim_garda.cpp
-LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libbinder libmedia
+LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libbinder
 LOCAL_CFLAGS := -Wno-unused-parameter
 LOCAL_MODULE := libshim_garda
 LOCAL_MODULE_TAGS := optional
