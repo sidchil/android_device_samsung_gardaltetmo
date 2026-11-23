@@ -260,3 +260,6 @@
 # T399 sensors (libakm in system_server opens these)
 /dev/accelerometer        0660   system     input
 /dev/akm8963              0660   system     input
+
+# NFC
+/dev/pn547                0660   nfc        nfc
