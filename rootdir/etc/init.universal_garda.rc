@@ -269,7 +269,6 @@ on fs
     mkdir /persdata/absolute 0750 system system
 
     wait /dev/block/platform/dw_mmc.0/by-name/PERSDATA
-    check_fs /dev/block/platform/dw_mmc.0/by-name/PERSDATA ext4
     mount ext4 /dev/block/platform/dw_mmc.0/by-name/PERSDATA /persdata/absolute nosuid nodev barrier=1
 
     chown system system /persdata
@@ -503,6 +502,7 @@ service mobicore /system/bin/mcDriverDaemon -r /system/app/FFFFFFFF0000000000000
 
 # GPS
 service gpsd /system/bin/gpsd -c /system/etc/gps.xml
+    disabled
     class main
     user gps
     group system wakelock inet net_raw
@@ -515,7 +515,7 @@ on property:ro.debuggable=1
     write /sys/module/fiq_debugger/parameters/kgdb_enable 1
 
 # Modem boot daemon
-service cpboot-daemon /sbin/cbd -d -t ss222 -b m -m m
+service cpboot-daemon /sbin/cbd -d
     class main
     user root
     group radio cache inet misc audio sdcard_r sdcard_rw log shell
@@ -588,3 +588,17 @@ service swapon /sbin/sswap -s -f 1024
 #    seclabel u:r:sswap:s0
     oneshot
 
+
+# --- temporary debug: save logcat to /cache so TWRP can read it ---
+on post-fs
+    start bootlog
+    start bootsync
+
+service bootlog /system/bin/logcat -b all -v threadtime -f /cache/boot_logcat.txt -r 8192 -n 2
+    user root
+    group log
+    disabled
+
+service bootsync /system/bin/sh -c "while true; do sleep 2; sync; done"
+    user root
+    disabled

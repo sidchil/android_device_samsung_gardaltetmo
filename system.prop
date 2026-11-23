@@ -24,3 +24,4 @@ ro.nfc.sec_hal=true
 # this affects lock screen ColorFader and ensures release of /dev/pvrsrvkm GPU ressources
 ro.egl.destroy_after_detach=true
 
+ro.hardware.sensors=garda

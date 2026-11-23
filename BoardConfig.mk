@@ -117,3 +117,12 @@ BOARD_SEPOLICY_DIRS := \
 
 # The CM12 kernel's SELinux only supports policy versions up to 26 (Android 8.1 defaults to 30)
 POLICYVERS := 26
+
+# Shims for the stock 4.2.2 blobs
+TARGET_LD_SHIM_LIBS += \
+    /system/lib/hw/gralloc.exynos3.so|/system/lib/libshim_garda.so \
+    /system/vendor/lib/hw/hwcomposer.exynos3.so|/system/lib/libshim_garda.so \
+    /system/lib/hw/audio.primary.universal_garda.so|/system/lib/libshim_garda.so \
+    /system/vendor/lib/hw/camera.exynos3.so|/system/lib/libshim_garda.so \
+    /system/lib/libsec-ril.so|/system/lib/libshim_garda.so \
+    /system/lib/libExynosIPService.so|/system/lib/libshim_garda.so
