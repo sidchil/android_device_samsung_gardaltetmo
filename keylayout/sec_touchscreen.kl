@@ -1,0 +1,3 @@
+# T399 Melfas touchscreen keys (left key = recent apps, like the S5)
+key 139 APP_SWITCH	VIRTUAL
+key 158 BACK		VIRTUAL

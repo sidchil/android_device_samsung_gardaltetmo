@@ -126,4 +126,9 @@ TARGET_LD_SHIM_LIBS += \
     /system/vendor/lib/hw/camera.exynos3.so|/system/lib/libshim_garda.so \
     /system/lib/libsec-ril.so|/system/lib/libshim_garda.so \
     /system/lib/libExynosIPService.so|/system/lib/libshim_garda.so \
-    /system/lib/libMali.so|/system/lib/libshim_mali.so
+    /system/lib/libMali.so|/system/lib/libshim_mali.so \
+    /system/lib/hw/audio.primary.universal_garda.so|/system/lib/libshim_audio.so \
+    /system/vendor/lib/hw/camera.exynos3.so|/system/lib/libshim_camera.so
+
+# Legacy blobs (lib_Samsung_Resampler.so) contain text relocations
+TARGET_NEEDS_PLATFORM_TEXT_RELOCATIONS := true

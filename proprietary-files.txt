@@ -106,6 +106,9 @@ lib/libsamsungRecord.so
 lib/libsamsungRecord_ns.so
 lib/libsamsungSoundbooster.so
 lib/lib_Samsung_Resampler.so
+lib/lib_Samsung_SB_AM_for_ICS_v03008.so
+lib/lib_SamsungRec_V03011b.so
+lib/lib_DNSe_NRSS_ver225.so
 
 # T399 graphics/camera/HAL (4.2.2 blobs)
 vendor/lib/hw/hwcomposer.exynos3.so

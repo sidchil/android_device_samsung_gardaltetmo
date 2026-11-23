@@ -40,7 +40,9 @@ PRODUCT_PACKAGES += \
 
 # Audio
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/audio/audio_policy.conf:system/vendor/etc/audio_policy.conf
+    $(LOCAL_PATH)/audio/audio_policy.conf:system/vendor/etc/audio_policy.conf \
+    $(LOCAL_PATH)/audio/tinyucm.conf:system/etc/tinyucm.conf \
+    $(LOCAL_PATH)/audio/default_gain.conf:system/etc/default_gain.conf
 
 # Camera
 #PRODUCT_PACKAGES += \
@@ -48,7 +50,8 @@ PRODUCT_COPY_FILES += \
 
 # Keylayouts
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/keylayout/sec_touchkey.kl:system/usr/keylayout/sec_touchkey.kl
+    $(LOCAL_PATH)/keylayout/sec_touchkey.kl:system/usr/keylayout/sec_touchkey.kl \
+    $(LOCAL_PATH)/keylayout/sec_touchscreen.kl:system/usr/keylayout/sec_touchscreen.kl
 
 # Lights
 PRODUCT_PACKAGES += \
@@ -133,5 +136,5 @@ $(call inherit-product-if-exists, frameworks/native/build/phone-hdpi-512-dalvik-
 
 # Inherit from smdk3470-common
 $(call inherit-product, device/samsung/smdk3470-common/smdk3470-common.mk)
-PRODUCT_PACKAGES += libshim_garda libshim_mali
+PRODUCT_PACKAGES += libshim_garda libshim_mali libshim_audio libshim_camera
 PRODUCT_PACKAGES += sensors.garda
