@@ -29,3 +29,6 @@ ro.hardware.sensors=garda
 # 3.4 sdcardfs backport ignores per-view remount options (apps could not write
 # to shared storage); use the FUSE sdcard daemon instead.
 ro.sys.sdcardfs=false
+
+# Stock HAL1 expects the heap fd back via get_memory()'s user argument (Samsung 4.2 framework behaviour)
+ro.camera.legacy.heap_fd_to_user=true

@@ -1,7 +1,22 @@
 #include <stdint.h>
 extern "C" {
 #define EMPTY_SLOT(sym) void sym(void) {}
-EMPTY_SLOT(_ZN7android10VectorImpl19reservedVectorImpl1Ev)
+/*
+ * 4.2 VectorImpl had 8 reserved virtual slots, so in vtables emitted by 4.2
+ * blobs (e.g. SortedVector<key_value_pair_t<String8,String8>> inside
+ * CameraParameters, whose ctor is inline in 4.2 headers) do_compare sits in
+ * slot 16. 8.1 removed the reserved slots and calls do_compare through slot 8,
+ * which in a 4.2 vtable is reservedVectorImpl1. Forward it to the real
+ * do_compare so key lookups work (otherwise every lookup misses and e.g. the
+ * camera HAL reads -1 for all parameters). 8.1 only calls slot 8 on
+ * SortedVectorImpl objects, so this is never reached for plain vectors.
+ */
+typedef int (*t399_do_compare_t)(const void *thiz, const void *lhs, const void *rhs);
+int _ZN7android10VectorImpl19reservedVectorImpl1Ev(const void *thiz, const void *lhs, const void *rhs)
+{
+    t399_do_compare_t const *vt = *(t399_do_compare_t const * const *)thiz;
+    return vt[16](thiz, lhs, rhs);
+}
 EMPTY_SLOT(_ZN7android10VectorImpl19reservedVectorImpl2Ev)
 EMPTY_SLOT(_ZN7android10VectorImpl19reservedVectorImpl3Ev)
 EMPTY_SLOT(_ZN7android10VectorImpl19reservedVectorImpl4Ev)
