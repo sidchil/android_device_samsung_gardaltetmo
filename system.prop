@@ -25,3 +25,7 @@ ro.nfc.sec_hal=true
 ro.egl.destroy_after_detach=true
 
 ro.hardware.sensors=garda
+
+# 3.4 sdcardfs backport ignores per-view remount options (apps could not write
+# to shared storage); use the FUSE sdcard daemon instead.
+ro.sys.sdcardfs=false
