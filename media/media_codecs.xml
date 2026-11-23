@@ -84,7 +84,37 @@ Only the three quirks included above are recognized at this point:
         <Setting name="max-video-encoder-input-buffers" value="9" />
     </Settings>
     <Decoders>
-        <!-- T399: Exynos 4.2 HW decoders disabled until their native-window output works on 8.1 (csc_convert error -> black video); Google SW decoders are used -->
+        <!-- T399: stock 4.2 Exynos decoders (byte-buffer output + software renderer, see ro.media.exynos_dec_sw_renderer) -->
+        <MediaCodec name="OMX.Exynos.AVC.Decoder" type="video/avc" >
+            <Quirk name="requires-allocate-on-input-ports" />
+            <Quirk name="requires-allocate-on-output-ports" />
+            <Limit name="size" min="32x32" max="1920x1088" />
+            <Limit name="alignment" value="2x2" />
+            <Limit name="block-size" value="16x16" />
+            <Limit name="blocks-per-second" min="1" max="244800" />
+            <Limit name="bitrate" range="1-20000000" />
+            <Limit name="concurrent-instances" max="4" />
+        </MediaCodec>
+        <MediaCodec name="OMX.Exynos.MPEG4.Decoder" type="video/mp4v-es" >
+            <Quirk name="requires-allocate-on-input-ports" />
+            <Quirk name="requires-allocate-on-output-ports" />
+            <Limit name="size" min="32x32" max="1920x1088" />
+            <Limit name="alignment" value="2x2" />
+            <Limit name="block-size" value="16x16" />
+            <Limit name="blocks-per-second" min="1" max="244800" />
+            <Limit name="bitrate" range="1-40000000" />
+            <Limit name="concurrent-instances" max="4" />
+        </MediaCodec>
+        <MediaCodec name="OMX.Exynos.H263.Decoder" type="video/3gpp" >
+            <Quirk name="requires-allocate-on-input-ports" />
+            <Quirk name="requires-allocate-on-output-ports" />
+            <Limit name="size" min="32x32" max="720x480" />
+            <Limit name="alignment" value="4x4" />
+            <Limit name="block-size" value="16x16" />
+            <Limit name="blocks-per-second" min="1" max="244800" />
+            <Limit name="bitrate" range="1-40000000" />
+            <Limit name="concurrent-instances" max="4" />
+        </MediaCodec>
 
     </Decoders>
 

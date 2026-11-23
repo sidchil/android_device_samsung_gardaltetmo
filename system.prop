@@ -37,3 +37,6 @@ ro.camera.legacy.samsung_metadata_bridge=true
 
 # 1 GB RAM (780 MB usable): Android low-RAM device mode
 ro.config.low_ram=true
+
+# Stock 4.2 Exynos video decoders output to byte buffers, rendered in software
+ro.media.exynos_dec_sw_renderer=true
