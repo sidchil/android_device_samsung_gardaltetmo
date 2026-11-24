@@ -49,7 +49,6 @@ on init
 # Make param link
 	symlink /dev/block/mmcblk0p8 /dev/block/param
 
-
 on post-fs-data
     setprop vold.post_fs_data_done 1
 
@@ -348,7 +347,6 @@ on fs
     chown system system /sys/class/sec/led/led_br_lev
     chown system system /sys/class/sec/led/led_lowpower
 
-
 # Permission for gpio_keys
     chown system radio /sys/class/sec/sec_key/wakeup_keys
     write /sys/class/sec/sec_key/wakeup_keys 116,172
@@ -582,19 +580,7 @@ service charger /charger
 
 # SSWAP
 
-
 # --- temporary debug: save logcat to /cache so TWRP can read it ---
-# (not started by default; for debugging: setprop ctl.start bootlog / bootsync)
-
-service bootlog /system/bin/logcat -b all -v threadtime -f /cache/boot_logcat.txt -r 8192 -n 2
-    user root
-    group log
-    disabled
-
-service bootsync /system/bin/sh -c "while true; do sleep 2; sync; done"
-    user root
-    disabled
-
 
 on property:sys.boot_completed=1
     start t399swap
@@ -608,7 +594,6 @@ on property:sys.boot_completed=1
     write /sys/devices/system/cpu/cpufreq/interactive/boostpulse_duration 200000
     chown system system /sys/devices/system/cpu/cpufreq/interactive/boostpulse
     chmod 0220 /sys/devices/system/cpu/cpufreq/interactive/boostpulse
-
 
 service t399swap /system/bin/sh /sbin/t399swap.sh
     user root

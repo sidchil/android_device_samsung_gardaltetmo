@@ -127,10 +127,6 @@ PRODUCT_PACKAGES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.sys.isUsbOtgEnabled=true
 
-# ADB
-PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    ro.adb.secure=0
-
 # Doze
 PRODUCT_PACKAGES += \
     SamsungDoze
