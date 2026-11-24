@@ -2,6 +2,8 @@
 
 Unofficial build of LineageOS 15.1 (Android 8.1) for the T-Mobile Galaxy Light (gardaltetmo). Download the latest build from [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
 
+Uses a leaner kernel than stock, which adds about 128 MB of usable RAM.
+
 <img src="screenshots/07-phone.jpg" width="500">
 
 ## Working
