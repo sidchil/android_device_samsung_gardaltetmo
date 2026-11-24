@@ -1,0 +1,132 @@
+From 16dc519a1e932e73a6993ce055c2d6d7efd1e30b Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 04:38:50 +0000
+Subject: [PATCH] EGL, SurfaceFlinger: work around the Mali r3p2 driver
+
+Change-Id: I50bfc84cf6a4bad33c9a8fac5cf8f6c4f66bb522
+---
+ opengl/libs/EGL/Loader.cpp                    | 35 +++++++++++++++++++
+ services/surfaceflinger/SurfaceFlinger.cpp    |  9 ++++-
+ .../surfaceflinger/SurfaceFlinger_hwc1.cpp    |  9 ++++-
+ 3 files changed, 51 insertions(+), 2 deletions(-)
+
+diff --git a/opengl/libs/EGL/Loader.cpp b/opengl/libs/EGL/Loader.cpp
+index 371239d..0f6f1cd 100644
+--- a/opengl/libs/EGL/Loader.cpp
++++ b/opengl/libs/EGL/Loader.cpp
+@@ -259,6 +259,23 @@ void Loader::close(void* driver)
+     delete hnd;
+ }
+ 
++// T399: with legacy drivers (Mali r3p2), looking up an extension the driver
++// doesn't implement (dlsym() on the driver handle walks its dependency tree,
++// and eglGetProcAddress() falls back to global symbols) can return the system
++// wrapper itself, e.g. libEGL's eglSwapBuffersWithDamageKHR. The wrapper then
++// calls itself: EGL_BAD_SURFACE or infinite recursion. Reject any "driver"
++// entry point that lives inside one of the system wrapper libraries.
++static bool points_into_wrapper(__eglMustCastToProperFunctionPointerType f)
++{
++    Dl_info info;
++    if (f == NULL || !dladdr((void*)f, &info) || info.dli_fname == NULL)
++        return false;
++    const char* base = strrchr(info.dli_fname, '/');
++    base = base ? base + 1 : info.dli_fname;
++    return !strcmp(base, "libEGL.so") || !strcmp(base, "libGLESv1_CM.so") ||
++           !strcmp(base, "libGLESv2.so") || !strcmp(base, "libGLESv3.so");
++}
++
+ void Loader::init_api(void* dso,
+         char const * const * api,
+         __eglMustCastToProperFunctionPointerType* curr,
+@@ -272,9 +289,16 @@ void Loader::init_api(void* dso,
+         char const * name = *api;
+         __eglMustCastToProperFunctionPointerType f =
+             (__eglMustCastToProperFunctionPointerType)dlsym(dso, name);
++        if (points_into_wrapper(f)) {
++            f = NULL;
++        }
+         if (f == NULL) {
+             // couldn't find the entry-point, use eglGetProcAddress()
+             f = getProcAddress(name);
++            if (points_into_wrapper(f)) {
++                ALOGW("driver returned wrapper entry point for %s, ignoring", name);
++                f = NULL;
++            }
+         }
+         if (f == NULL) {
+             // Try without the OES postfix
+@@ -283,6 +307,7 @@ void Loader::init_api(void* dso,
+                 strncpy(scrap, name, index);
+                 scrap[index] = 0;
+                 f = (__eglMustCastToProperFunctionPointerType)dlsym(dso, scrap);
++                if (points_into_wrapper(f)) f = NULL;
+                 //ALOGD_IF(f, "found <%s> instead", scrap);
+             }
+         }
+@@ -292,6 +317,7 @@ void Loader::init_api(void* dso,
+             if (index>0 && strcmp(name+index, "OES")) {
+                 snprintf(scrap, SIZE, "%sOES", name);
+                 f = (__eglMustCastToProperFunctionPointerType)dlsym(dso, scrap);
++                if (points_into_wrapper(f)) f = NULL;
+                 //ALOGD_IF(f, "found <%s> instead", scrap);
+             }
+         }
+@@ -505,9 +531,18 @@ void *Loader::load_driver(const char* kind,
+             char const * name = *api;
+             __eglMustCastToProperFunctionPointerType f =
+                 (__eglMustCastToProperFunctionPointerType)dlsym(dso, name);
++            if (points_into_wrapper(f)) {
++                // dlsym() on the driver handle also searches its dependency
++                // tree, which can contain the system libEGL itself.
++                f = NULL;
++            }
+             if (f == NULL) {
+                 // couldn't find the entry-point, use eglGetProcAddress()
+                 f = getProcAddress(name);
++                if (points_into_wrapper(f)) {
++                    ALOGW("driver returned wrapper entry point for %s, ignoring", name);
++                    f = NULL;
++                }
+                 if (f == NULL) {
+                     f = (__eglMustCastToProperFunctionPointerType)0;
+                 }
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index 33abd80..f630cf1 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -4581,7 +4581,14 @@ status_t SurfaceFlinger::captureScreenImplLocked(const sp<const DisplayDevice>&
+     // wait on it directly.
+     EGLSyncKHR sync = EGL_NO_SYNC_KHR;
+     if (!DEBUG_SCREENSHOTS) {
+-       sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
++       // T399: only use native fence sync if the driver supports it. Mali r3p2
++       // has no eglDupNativeFenceFDANDROID export, and libEGL ends up recursing
++       // into itself (stack overflow) when it is called.
++       if (SyncFeatures::getInstance().useNativeFenceSync()) {
++           sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
++       } else {
++           sync = EGL_NO_SYNC_KHR;
++       }
+        // native fence fd will not be populated until flush() is done.
+        getRenderEngine().flush();
+     }
+diff --git a/services/surfaceflinger/SurfaceFlinger_hwc1.cpp b/services/surfaceflinger/SurfaceFlinger_hwc1.cpp
+index 5e37aa8..05a0085 100644
+--- a/services/surfaceflinger/SurfaceFlinger_hwc1.cpp
++++ b/services/surfaceflinger/SurfaceFlinger_hwc1.cpp
+@@ -4032,7 +4032,14 @@ status_t SurfaceFlinger::captureScreenImplLocked(
+                         // wait on it directly.
+                         EGLSyncKHR sync;
+                         if (!DEBUG_SCREENSHOTS) {
+-                           sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
++                           // T399: only use native fence sync if the driver supports it. Mali r3p2
++                           // has no eglDupNativeFenceFDANDROID export, and libEGL ends up recursing
++                           // into itself (stack overflow) when it is called.
++                           if (SyncFeatures::getInstance().useNativeFenceSync()) {
++                               sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
++                           } else {
++                               sync = EGL_NO_SYNC_KHR;
++                           }
+                            // native fence fd will not be populated until flush() is done.
+                            getRenderEngine().flush();
+                         } else {

@@ -1,0 +1,60 @@
+From f12b12007a6565dda526c801c7401e7ffaf1f162 Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 13:37:35 +0000
+Subject: [PATCH] ACodec: use byte buffers for old Exynos decoders
+
+Change-Id: I044f530c251cdcccb63b75539833accc675d3a97
+---
+ media/libstagefright/ACodec.cpp | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
+index def8ada..c40c70d 100644
+--- a/media/libstagefright/ACodec.cpp
++++ b/media/libstagefright/ACodec.cpp
+@@ -22,6 +22,7 @@
+ #endif
+ 
+ #include <inttypes.h>
++#include <cutils/properties.h>
+ #include <utils/Trace.h>
+ 
+ #include <gui/Surface.h>
+@@ -64,6 +65,15 @@
+ 
+ namespace android {
+ 
++// Legacy (Android 4.2) Exynos decoders cannot write into graphic buffers on
++// 8.1, but decode fine into byte buffers; MediaCodec then renders them in
++// software (device opt-in via ro.media.exynos_dec_sw_renderer).
++static bool isLegacyExynosDecoder(const AString &name, bool encoder) {
++    static const bool sEnabled =
++            property_get_bool("ro.media.exynos_dec_sw_renderer", false);
++    return sEnabled && !encoder && name.startsWith("OMX.Exynos.");
++}
++
+ using binder::Status;
+ 
+ enum {
+@@ -1943,7 +1953,10 @@ status_t ACodec::configureCodec(
+                 return err;
+             }
+ 
+-            err = setPortMode(kPortIndexOutput, IOMX::kPortModeDynamicANWBuffer);
++            // Probing dynamic ANW mode leaves legacy Exynos decoders stuck in
++            // graphic-buffer (tiled) mode; they are run in byte-buffer mode.
++            err = isLegacyExynosDecoder(mComponentName, encoder) ? INVALID_OPERATION
++                    : setPortMode(kPortIndexOutput, IOMX::kPortModeDynamicANWBuffer);
+             if (err != OK) {
+                 // if adaptive playback has been requested, try JB fallback
+                 // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
+@@ -2017,7 +2030,8 @@ status_t ACodec::configureCodec(
+     if (video) {
+         // determine need for software renderer
+         bool usingSwRenderer = false;
+-        if (haveNativeWindow && mComponentName.startsWith("OMX.google.")) {
++        if (haveNativeWindow && (mComponentName.startsWith("OMX.google.") ||
++                isLegacyExynosDecoder(mComponentName, encoder))) {
+             usingSwRenderer = true;
+             haveNativeWindow = false;
+             (void)setPortMode(kPortIndexOutput, IOMX::kPortModePresetByteBuffer);

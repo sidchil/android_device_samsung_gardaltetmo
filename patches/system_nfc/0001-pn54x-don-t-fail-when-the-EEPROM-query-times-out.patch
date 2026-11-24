@@ -1,0 +1,47 @@
+From 618f8ca85615e3e3044d5bb6bff4d7daf609df3e Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 13:16:30 +0000
+Subject: [PATCH] pn54x: don't fail when the EEPROM query times out
+
+Change-Id: Iece138e0df53281a5245e7c0c251767d739a00c2
+---
+ halimpl/pn54x/hal/phNxpNciHal.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/halimpl/pn54x/hal/phNxpNciHal.c b/halimpl/pn54x/hal/phNxpNciHal.c
+index 5a799d5..34f0c08 100644
+--- a/halimpl/pn54x/hal/phNxpNciHal.c
++++ b/halimpl/pn54x/hal/phNxpNciHal.c
+@@ -109,6 +109,7 @@ static void phNxpNciHal_print_res_status(uint8_t* p_rx_data, uint16_t* p_len);
+ static NFCSTATUS phNxpNciHal_CheckValidFwVersion(void);
+ static void phNxpNciHal_enable_i2c_fragmentation();
+ static NFCSTATUS phNxpNciHal_get_mw_eeprom(void);
++static bool mw_eeprom_supported = true;
+ static NFCSTATUS phNxpNciHal_set_mw_eeprom(void);
+ static int phNxpNciHal_fw_mw_ver_check();
+ NFCSTATUS phNxpNciHal_check_clock_config(void);
+@@ -1127,9 +1128,12 @@ int phNxpNciHal_core_initialized(uint8_t* p_core_init_rsp_params) {
+   // Check if firmware download success
+   status = phNxpNciHal_get_mw_eeprom();
+   if (status != NFCSTATUS_SUCCESS) {
+-    NXPLOG_NCIHAL_E("NXP GET MW EEPROM AREA Proprietary Ext failed");
+-    retry_core_init_cnt++;
+-    goto retry_core_init;
++    // Old PN547C2 firmware (e.g. 6.3.13 on the Galaxy Light SGH-T399) does
++    // not implement the MW EEPROM area (0xA00F) and never answers. Retrying
++    // just loops until NfcService's watchdog aborts; treat it as optional.
++    NXPLOG_NCIHAL_W("NXP GET MW EEPROM AREA not supported by firmware; skipping");
++    mw_eeprom_supported = false;
++    status = NFCSTATUS_SUCCESS;
+   }
+ 
+   //
+@@ -1490,7 +1494,7 @@ int phNxpNciHal_core_initialized(uint8_t* p_core_init_rsp_params) {
+     }
+ #endif
+     // Update eeprom value
+-    status = phNxpNciHal_set_mw_eeprom();
++    status = mw_eeprom_supported ? phNxpNciHal_set_mw_eeprom() : NFCSTATUS_SUCCESS;
+     if (status != NFCSTATUS_SUCCESS) {
+       NXPLOG_NCIHAL_E("NXP Update MW EEPROM Proprietary Ext failed");
+     }

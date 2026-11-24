@@ -1,0 +1,26 @@
+From 117471c0648cc1483a853318d21045bab52fd9ab Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 07:06:50 +0000
+Subject: [PATCH] hwui: turn off GL validation for Mali-400
+
+Change-Id: I35965a24d67cff23ffe516088a76bc9aef6284d4
+---
+ libs/hwui/Android.bp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/libs/hwui/Android.bp b/libs/hwui/Android.bp
+index 770a57a5..b60041c9 100644
+--- a/libs/hwui/Android.bp
++++ b/libs/hwui/Android.bp
+@@ -247,7 +247,10 @@ cc_library {
+         // Enables fine-grained GLES error checking
+         // If enabled, every GLES call is wrapped & error checked
+         // Has moderate overhead
+-        "hwui_enable_opengl_validation",
++        // T399: disabled. The legacy Mali-400 r3p2 driver raises GL errors
++        // (e.g. glViewport GL_INVALID_VALUE) that newer drivers do not, and
++        // validation turns every GL error into an app abort.
++        // "hwui_enable_opengl_validation",
+ ],
+ }
+ 

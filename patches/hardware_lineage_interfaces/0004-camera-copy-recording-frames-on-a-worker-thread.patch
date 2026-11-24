@@ -1,0 +1,209 @@
+From 151cd45e97f8d9510ee62d008891876c215bf89c Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 12:02:27 +0000
+Subject: [PATCH 4/4] camera: copy recording frames on a worker thread
+
+Change-Id: I774631238b227cd4d4a745a2b805dcc75af1c543
+---
+ camera/device/1.0-legacy/CameraDevice.cpp   | 122 ++++++++++++++++----
+ camera/device/1.0-legacy/CameraDevice_1_0.h |  20 ++++
+ 2 files changed, 121 insertions(+), 21 deletions(-)
+
+diff --git a/camera/device/1.0-legacy/CameraDevice.cpp b/camera/device/1.0-legacy/CameraDevice.cpp
+index 8acf467..20af9f6 100644
+--- a/camera/device/1.0-legacy/CameraDevice.cpp
++++ b/camera/device/1.0-legacy/CameraDevice.cpp
+@@ -866,10 +866,34 @@ void CameraDevice::bridgeStartLocked() {
+     }
+     mBridgeBusy.assign(kBridgeBuffers, false);
+     mBridgeLogged = false;
++    mBridgeIn = mBridgeCopied = mBridgeNoSlot = 0;
++    mBridgeCopyNs = 0;
+     ALOGI("%s: Samsung recording bridge %ux%u, heap %p", __FUNCTION__, w, h, mBridgeHeap);
++    if (!mBridgeThreadRunning) {
++        mBridgeExit = false;
++        mBridgeQueue.clear();
++        if (pthread_create(&mBridgeThread, nullptr, bridgeThreadEntry, this) == 0) {
++            mBridgeThreadRunning = true;
++        } else {
++            ALOGE("%s: cannot start bridge thread", __FUNCTION__);
++        }
++    }
+ }
+ 
+ void CameraDevice::bridgeStopLocked() {
++    bool join = false;
++    {
++        Mutex::Autolock _b(mBridgeLock);
++        if (mBridgeThreadRunning) {
++            mBridgeExit = true;
++            mBridgeCond.signal();
++            join = true;
++        }
++    }
++    if (join) {
++        pthread_join(mBridgeThread, nullptr);  // drains/returns queued HAL buffers
++        mBridgeThreadRunning = false;
++    }
+     Mutex::Autolock _b(mBridgeLock);
+     for (auto& m : mBridgeMaps) {
+         munmap(m.second.first, m.second.second);
+@@ -903,8 +927,7 @@ void* CameraDevice::bridgeMapFd(int fd, size_t size) {
+ void CameraDevice::bridgeFrame(nsecs_t timestamp, int32_t msgType,
+         CameraHeapMemory* mem, unsigned index) {
+     void* md = (uint8_t*) mem->mHidlHeapMemData + index * mem->mBufSize;
+-    int slot = -1;
+-    uint32_t heapId = 0;
++    bool queued = false;
+     if (mem->mBufSize >= sizeof(SamsungRecAddrs)) {
+         SamsungRecAddrs a = *(SamsungRecAddrs*) md;
+         Mutex::Autolock _b(mBridgeLock);
+@@ -913,34 +936,91 @@ void CameraDevice::bridgeFrame(nsecs_t timestamp, int32_t msgType,
+                     __FUNCTION__, a.type, a.fdY, a.fdCbCr, a.bufIndex, mem->mBufSize);
+             mBridgeLogged = true;
+         }
+-        if (mBridgeHeap != nullptr) {
++        int slot = -1;
++        if (mBridgeHeap != nullptr && mBridgeThreadRunning) {
+             for (size_t i = 0; i < mBridgeBusy.size(); i++) {
+                 if (!mBridgeBusy[i]) { slot = i; break; }
+             }
+         }
++        if (mBridgeIn == 0) mBridgeLastIn = systemTime();
++        mBridgeIn++;
++        if (slot < 0) mBridgeNoSlot++;
++        if (mBridgeIn % 60 == 0) {
++            nsecs_t now = systemTime();
++            ALOGI("bridge stats: in %u copied %u noslot %u avg copy %lld us, in-rate %.1f fps",
++                    mBridgeIn, mBridgeCopied, mBridgeNoSlot,
++                    (long long) (mBridgeCopied ? mBridgeCopyNs / mBridgeCopied / 1000 : 0),
++                    60e9 / (double) (now - mBridgeLastIn));
++            mBridgeLastIn = now;
++        }
+         if (slot >= 0) {
+-            size_t ySize = (size_t) mBridgeW * mBridgeH;
+-            size_t cSize = ySize / 2;
+-            void* y = bridgeMapFd((int) a.fdY, ySize);
+-            void* c = bridgeMapFd((int) a.fdCbCr, cSize);
+-            if (y != nullptr && c != nullptr) {
+-                uint8_t* dst = (uint8_t*) mBridgeHeap->data + slot * (ySize + cSize);
+-                memcpy(dst, y, ySize);
+-                memcpy(dst + ySize, c, cSize);
+-                mBridgeBusy[slot] = true;
+-                heapId = static_cast<CameraHeapMemory*>(mBridgeHeap->handle)->handle.mId;
+-            } else {
+-                slot = -1;
+-            }
++            // Copy and return the HAL buffer on the worker thread, so the
++            // HAL's recording thread is not blocked by the (uncached) copy.
++            mBridgeBusy[slot] = true;
++            mBridgeQueue.push_back({md, a.fdY, a.fdCbCr, slot, timestamp, msgType});
++            mBridgeCond.signal();
++            queued = true;
+         }
+     }
+-    // Return the HAL buffer immediately; the framework only sees the copy.
+-    if (mDevice != nullptr && mDevice->ops->release_recording_frame) {
++    if (!queued && mDevice != nullptr && mDevice->ops->release_recording_frame) {
+         mDevice->ops->release_recording_frame(mDevice, md);
+     }
+-    if (slot >= 0 && mDeviceCallback != nullptr) {
+-        mDeviceCallback->dataCallbackTimestamp(
+-                (DataCallbackMsg) msgType, heapId, slot, timestamp);
++}
++
++void* CameraDevice::bridgeThreadEntry(void* arg) {
++    static_cast<CameraDevice*>(arg)->bridgeThreadLoop();
++    return nullptr;
++}
++
++void CameraDevice::bridgeThreadLoop() {
++    for (;;) {
++        BridgeJob job;
++        void* dst = nullptr;
++        void* y = nullptr;
++        void* c = nullptr;
++        size_t ySize = 0, cSize = 0;
++        uint32_t heapId = 0;
++        {
++            Mutex::Autolock _b(mBridgeLock);
++            while (mBridgeQueue.empty() && !mBridgeExit) {
++                mBridgeCond.wait(mBridgeLock);
++            }
++            if (mBridgeQueue.empty()) {
++                return;  // exit requested and nothing pending
++            }
++            job = mBridgeQueue.front();
++            mBridgeQueue.pop_front();
++            ySize = (size_t) mBridgeW * mBridgeH;
++            cSize = ySize / 2;
++            if (!mBridgeExit && mBridgeHeap != nullptr) {
++                y = bridgeMapFd((int) job.fdY, ySize);
++                c = bridgeMapFd((int) job.fdCbCr, cSize);
++                dst = (uint8_t*) mBridgeHeap->data + job.slot * (ySize + cSize);
++                heapId = static_cast<CameraHeapMemory*>(mBridgeHeap->handle)->handle.mId;
++            }
++        }
++        bool ok = false;
++        if (dst != nullptr && y != nullptr && c != nullptr) {
++            nsecs_t t0 = systemTime();
++            memcpy(dst, y, ySize);
++            memcpy((uint8_t*) dst + ySize, c, cSize);
++            Mutex::Autolock _b(mBridgeLock);
++            mBridgeCopyNs += systemTime() - t0;
++            mBridgeCopied++;
++            ok = true;
++        }
++        if (mDevice != nullptr && mDevice->ops->release_recording_frame) {
++            mDevice->ops->release_recording_frame(mDevice, job.md);
++        }
++        if (ok && mDeviceCallback != nullptr) {
++            mDeviceCallback->dataCallbackTimestamp(
++                    (DataCallbackMsg) job.msgType, heapId, job.slot, job.timestamp);
++        } else {
++            Mutex::Autolock _b(mBridgeLock);
++            if (job.slot >= 0 && (size_t) job.slot < mBridgeBusy.size()) {
++                mBridgeBusy[job.slot] = false;
++            }
++        }
+     }
+ }
+ // ---------------------------------------------------------------------------
+diff --git a/camera/device/1.0-legacy/CameraDevice_1_0.h b/camera/device/1.0-legacy/CameraDevice_1_0.h
+index 5c31785..330b0af 100644
+--- a/camera/device/1.0-legacy/CameraDevice_1_0.h
++++ b/camera/device/1.0-legacy/CameraDevice_1_0.h
+@@ -19,6 +19,9 @@
+ 
+ #include <unordered_map>
+ #include <vector>
++#include <utils/Condition.h>
++#include <pthread.h>
++#include <deque>
+ #include "utils/Mutex.h"
+ #include "utils/SortedVector.h"
+ #include "CameraModule.h"
+@@ -190,6 +193,23 @@ private:
+     std::vector<bool> mBridgeBusy;
+     std::unordered_map<int, std::pair<void*, size_t>> mBridgeMaps;
+     bool mBridgeLogged = false;
++    uint32_t mBridgeIn = 0, mBridgeCopied = 0, mBridgeNoSlot = 0;
++    struct BridgeJob {
++        void* md;
++        uint32_t fdY;
++        uint32_t fdCbCr;
++        int slot;
++        nsecs_t timestamp;
++        int32_t msgType;
++    };
++    std::deque<BridgeJob> mBridgeQueue;
++    Condition mBridgeCond;
++    pthread_t mBridgeThread;
++    bool mBridgeThreadRunning = false;
++    bool mBridgeExit = false;
++    static void* bridgeThreadEntry(void* arg);
++    void bridgeThreadLoop();
++    nsecs_t mBridgeCopyNs = 0, mBridgeLastIn = 0;
+ 
+     mutable Mutex mBatchLock;
+     // Start of protection scope for mBatchLock

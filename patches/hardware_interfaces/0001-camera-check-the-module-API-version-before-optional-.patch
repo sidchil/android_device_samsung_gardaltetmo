@@ -1,0 +1,41 @@
+From 841ae2766df26e10933ca309396537100bd842ec Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 07:25:09 +0000
+Subject: [PATCH] camera: check the module API version before optional calls
+
+Change-Id: I46a6012cefc82a9f2b8d54d5c5b18fecc2af300f
+---
+ camera/common/1.0/default/CameraModule.cpp | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/camera/common/1.0/default/CameraModule.cpp b/camera/common/1.0/default/CameraModule.cpp
+index 3a4bc9c..06e13ec 100644
+--- a/camera/common/1.0/default/CameraModule.cpp
++++ b/camera/common/1.0/default/CameraModule.cpp
+@@ -379,11 +379,14 @@ int CameraModule::setCallbacks(const camera_module_callbacks_t *callbacks) {
+ }
+ 
+ bool CameraModule::isVendorTagDefined() const {
+-    return mModule->get_vendor_tag_ops != NULL;
++    // get_vendor_tag_ops only exists in modules >= 2.2; older (e.g. Android
++    // 4.2) modules end before it and the field would read unrelated data.
++    return getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_2 &&
++            mModule->get_vendor_tag_ops != NULL;
+ }
+ 
+ void CameraModule::getVendorTagOps(vendor_tag_ops_t* ops) {
+-    if (mModule->get_vendor_tag_ops) {
++    if (isVendorTagDefined()) {
+         ATRACE_BEGIN("camera_module->get_vendor_tag_ops");
+         mModule->get_vendor_tag_ops(ops);
+         ATRACE_END();
+@@ -404,7 +407,8 @@ bool CameraModule::isSetTorchModeSupported() const {
+ 
+ int CameraModule::setTorchMode(const char* camera_id, bool enable) {
+     int res = INVALID_OPERATION;
+-    if (mModule->set_torch_mode != NULL) {
++    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4 &&
++            mModule->set_torch_mode != NULL) {
+         ATRACE_BEGIN("camera_module->set_torch_mode");
+         res = mModule->set_torch_mode(camera_id, enable);
+         ATRACE_END();

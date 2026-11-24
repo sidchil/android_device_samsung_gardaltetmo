@@ -1,0 +1,28 @@
+From f1e574bfa4063f5bab05ca6e521bb67ad4bb1d40 Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 07:56:55 +0000
+Subject: [PATCH 1/4] camera: call release() before close()
+
+Change-Id: I2716feafdb5ae7097346e4b811ad4e1e57bc46df
+---
+ camera/device/1.0-legacy/CameraDevice.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/camera/device/1.0-legacy/CameraDevice.cpp b/camera/device/1.0-legacy/CameraDevice.cpp
+index 7140ee8..35d3006 100644
+--- a/camera/device/1.0-legacy/CameraDevice.cpp
++++ b/camera/device/1.0-legacy/CameraDevice.cpp
+@@ -1010,6 +1010,13 @@ Return<void> CameraDevice::close() {
+ void CameraDevice::closeLocked() {
+     ALOGI("Closing camera %s", mCameraId.c_str());
+     if(mDevice) {
++        // HAL1 contract (camera.h): ops->release() frees the hardware and is
++        // not done by close/the destructor. Pre-O frameworks always called it
++        // before close; legacy HALs (Samsung T399) otherwise keep the capture
++        // node open and every later open fails with EBUSY.
++        if (mDevice->ops && mDevice->ops->release) {
++            mDevice->ops->release(mDevice);
++        }
+         int rc = mDevice->common.close(&mDevice->common);
+         if (rc != OK) {
+             ALOGE("Could not close camera %s: %d", mCameraId.c_str(), rc);

@@ -1,0 +1,332 @@
+From 5cad3628aa22e868d6c5db5136477a855545dcb8 Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 08:46:56 +0000
+Subject: [PATCH 3/4] camera: add a recording bridge for Samsung metadata
+ buffers
+
+Change-Id: I4e02b7e61bc9f45ddd625bff9865d64ddb85b426
+---
+ camera/device/1.0-legacy/Android.bp         |   1 +
+ camera/device/1.0-legacy/CameraDevice.cpp   | 202 +++++++++++++++++++-
+ camera/device/1.0-legacy/CameraDevice_1_0.h |  20 ++
+ 3 files changed, 216 insertions(+), 7 deletions(-)
+
+diff --git a/camera/device/1.0-legacy/Android.bp b/camera/device/1.0-legacy/Android.bp
+index 6b71a74..7a866a8 100644
+--- a/camera/device/1.0-legacy/Android.bp
++++ b/camera/device/1.0-legacy/Android.bp
+@@ -7,6 +7,7 @@ cc_library_shared {
+     ],
+     shared_libs: [
+         "libhidlbase",
++        "libion",
+         "libhidlmemory",
+         "libhidltransport",
+         "libhwbinder",
+diff --git a/camera/device/1.0-legacy/CameraDevice.cpp b/camera/device/1.0-legacy/CameraDevice.cpp
+index f3fde0e..8acf467 100644
+--- a/camera/device/1.0-legacy/CameraDevice.cpp
++++ b/camera/device/1.0-legacy/CameraDevice.cpp
+@@ -17,6 +17,9 @@
+ #define LOG_TAG "CamDev@1.0-impl.legacy"
+ #include <hardware/camera.h>
+ #include <cutils/properties.h>
++#include <ion/ion.h>
++#include <sys/mman.h>
++#include <fcntl.h>
+ #include <hardware/gralloc1.h>
+ #include <hidlmemory/mapping.h>
+ #include <log/log.h>
+@@ -371,11 +374,34 @@ camera_memory_t* CameraDevice::sGetMemory(int fd, size_t buf_size, uint_t num_bu
+         return nullptr;
+     }
+ 
+-    CameraHeapMemory* mem;
+-    if (fd < 0) {
+-        mem = new CameraHeapMemory(object->mAshmemAllocator, buf_size, num_bufs);
+-    } else {
+-        mem = new CameraHeapMemory(fd, buf_size, num_bufs);
++    static const bool sHeapFdToUser =
++            property_get_bool("ro.camera.legacy.heap_fd_to_user", false);
++
++    CameraHeapMemory* mem = nullptr;
++    if (fd < 0 && sHeapFdToUser) {
++        // Samsung 4.2 frameworks allocated HAL heaps from ION (MemoryHeapIon)
++        // and the HAL hands the returned fd to FIMC as a dma-buf. Ashmem fds
++        // are rejected there ("invalid dmabuf fd"), so allocate from ION.
++        const size_t pagesize = getpagesize();
++        size_t size = ((buf_size * num_bufs + pagesize - 1) & ~(pagesize - 1));
++        int ionFd = ion_open();
++        int shareFd = -1;
++        if (ionFd >= 0) {
++            if (ion_alloc_fd(ionFd, size, 0, 1 << 0 /* system heap */, 0, &shareFd) == 0) {
++                mem = new CameraHeapMemory(shareFd, buf_size, num_bufs);
++                ::close(shareFd);
++            } else {
++                ALOGE("%s: ION allocation of %zu bytes failed, using ashmem", __FUNCTION__, size);
++            }
++            ion_close(ionFd);
++        }
++    }
++    if (mem == nullptr) {
++        if (fd < 0) {
++            mem = new CameraHeapMemory(object->mAshmemAllocator, buf_size, num_bufs);
++        } else {
++            mem = new CameraHeapMemory(fd, buf_size, num_bufs);
++        }
+     }
+     mem->incStrong(mem);
+     hidl_handle hidlHandle = mem->mHidlHandle;
+@@ -393,8 +419,6 @@ camera_memory_t* CameraDevice::sGetMemory(int fd, size_t buf_size, uint_t num_bu
+     // Samsung's 4.2 framework returned the heap fd through the "user"
+     // argument, and some Samsung HAL1s (e.g. T399 SecCameraHardware) check
+     // it (preview heap allocation fails with fd < 0). Opt-in per device.
+-    static const bool sHeapFdToUser =
+-            property_get_bool("ro.camera.legacy.heap_fd_to_user", false);
+     if (sHeapFdToUser && user != nullptr && mem->mHidlHandle != nullptr &&
+             mem->mHidlHandle->numFds > 0) {
+         *static_cast<int *>(user) = mem->mHidlHandle->data[0];
+@@ -515,6 +539,11 @@ void CameraDevice::sDataCbTimestamp(nsecs_t timestamp, int32_t msg_type,
+         return;
+     }
+ 
++    if (object->mBridgeMode && (msg_type & CAMERA_MSG_VIDEO_FRAME)) {
++        object->bridgeFrame(timestamp, msg_type, mem.get(), index);
++        return;
++    }
++
+     native_handle_t* handle = nullptr;
+     if (object->mMetadataMode) {
+         if (mem->mBufSize == sizeof(VideoNativeHandleMetadata)) {
+@@ -784,6 +813,138 @@ Return<bool> CameraDevice::previewEnabled() {
+     return false;
+ }
+ 
++
++// ---- Samsung 4.2 HAL1 recording bridge ------------------------------------
++namespace {
++// Samsung exynos "struct addrs" (kMetadataBufferTypeCameraSource payload)
++struct SamsungRecAddrs {
++    uint32_t type;
++    uint32_t fdY;
++    uint32_t fdCbCr;
++    uint32_t bufIndex;
++    uint32_t reserved;
++};
++const uint_t kBridgeBuffers = 6;
++}
++
++bool CameraDevice::sBridgeEnabled() {
++    static const bool enabled =
++            property_get_bool("ro.camera.legacy.samsung_metadata_bridge", false);
++    return enabled;
++}
++
++void CameraDevice::bridgeStartLocked() {
++    Mutex::Autolock _b(mBridgeLock);
++    uint32_t w = 0, h = 0;
++    if (mDevice->ops->get_parameters) {
++        char* params = mDevice->ops->get_parameters(mDevice);
++        if (params) {
++            const char* vs = strstr(params, "video-size=");
++            if (vs == nullptr || sscanf(vs + strlen("video-size="), "%ux%u", &w, &h) != 2) {
++                const char* ps = strstr(params, "preview-size=");
++                if (ps) sscanf(ps + strlen("preview-size="), "%ux%u", &w, &h);
++            }
++            if (mDevice->ops->put_parameters) {
++                mDevice->ops->put_parameters(mDevice, params);
++            } else {
++                free(params);
++            }
++        }
++    }
++    if (w == 0 || h == 0) {
++        ALOGE("%s: cannot determine video size", __FUNCTION__);
++        return;
++    }
++    if (mBridgeHeap != nullptr && (w != mBridgeW || h != mBridgeH)) {
++        mBridgeHeap->release(mBridgeHeap);
++        mBridgeHeap = nullptr;
++    }
++    mBridgeW = w;
++    mBridgeH = h;
++    if (mBridgeHeap == nullptr) {
++        mBridgeHeap = sGetMemory(-1, w * h * 3 / 2, kBridgeBuffers, nullptr);
++    }
++    mBridgeBusy.assign(kBridgeBuffers, false);
++    mBridgeLogged = false;
++    ALOGI("%s: Samsung recording bridge %ux%u, heap %p", __FUNCTION__, w, h, mBridgeHeap);
++}
++
++void CameraDevice::bridgeStopLocked() {
++    Mutex::Autolock _b(mBridgeLock);
++    for (auto& m : mBridgeMaps) {
++        munmap(m.second.first, m.second.second);
++    }
++    mBridgeMaps.clear();
++    if (mBridgeHeap != nullptr) {
++        mBridgeHeap->release(mBridgeHeap);
++        mBridgeHeap = nullptr;
++    }
++    mBridgeBusy.clear();
++}
++
++void* CameraDevice::bridgeMapFd(int fd, size_t size) {
++    auto it = mBridgeMaps.find(fd);
++    if (it != mBridgeMaps.end() && it->second.second >= size) {
++        return it->second.first;
++    }
++    if (it != mBridgeMaps.end()) {
++        munmap(it->second.first, it->second.second);
++        mBridgeMaps.erase(it);
++    }
++    void* p = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
++    if (p == MAP_FAILED) {
++        ALOGE("%s: mmap fd %d (%zu bytes) failed: %s", __FUNCTION__, fd, size, strerror(errno));
++        return nullptr;
++    }
++    mBridgeMaps[fd] = std::make_pair(p, size);
++    return p;
++}
++
++void CameraDevice::bridgeFrame(nsecs_t timestamp, int32_t msgType,
++        CameraHeapMemory* mem, unsigned index) {
++    void* md = (uint8_t*) mem->mHidlHeapMemData + index * mem->mBufSize;
++    int slot = -1;
++    uint32_t heapId = 0;
++    if (mem->mBufSize >= sizeof(SamsungRecAddrs)) {
++        SamsungRecAddrs a = *(SamsungRecAddrs*) md;
++        Mutex::Autolock _b(mBridgeLock);
++        if (!mBridgeLogged) {
++            ALOGI("%s: first frame type %u fdY %u fdCbCr %u idx %u (meta %zu bytes)",
++                    __FUNCTION__, a.type, a.fdY, a.fdCbCr, a.bufIndex, mem->mBufSize);
++            mBridgeLogged = true;
++        }
++        if (mBridgeHeap != nullptr) {
++            for (size_t i = 0; i < mBridgeBusy.size(); i++) {
++                if (!mBridgeBusy[i]) { slot = i; break; }
++            }
++        }
++        if (slot >= 0) {
++            size_t ySize = (size_t) mBridgeW * mBridgeH;
++            size_t cSize = ySize / 2;
++            void* y = bridgeMapFd((int) a.fdY, ySize);
++            void* c = bridgeMapFd((int) a.fdCbCr, cSize);
++            if (y != nullptr && c != nullptr) {
++                uint8_t* dst = (uint8_t*) mBridgeHeap->data + slot * (ySize + cSize);
++                memcpy(dst, y, ySize);
++                memcpy(dst + ySize, c, cSize);
++                mBridgeBusy[slot] = true;
++                heapId = static_cast<CameraHeapMemory*>(mBridgeHeap->handle)->handle.mId;
++            } else {
++                slot = -1;
++            }
++        }
++    }
++    // Return the HAL buffer immediately; the framework only sees the copy.
++    if (mDevice != nullptr && mDevice->ops->release_recording_frame) {
++        mDevice->ops->release_recording_frame(mDevice, md);
++    }
++    if (slot >= 0 && mDeviceCallback != nullptr) {
++        mDeviceCallback->dataCallbackTimestamp(
++                (DataCallbackMsg) msgType, heapId, slot, timestamp);
++    }
++}
++// ---------------------------------------------------------------------------
++
+ Return<Status> CameraDevice::storeMetaDataInBuffers(bool enable) {
+     ALOGV("%s(%s)", __FUNCTION__, mCameraId.c_str());
+     Mutex::Autolock _l(mLock);
+@@ -791,6 +952,16 @@ Return<Status> CameraDevice::storeMetaDataInBuffers(bool enable) {
+         ALOGE("%s called while camera is not opened", __FUNCTION__);
+         return Status::OPERATION_NOT_SUPPORTED;
+     }
++    if (mDevice->ops->store_meta_data_in_buffers && sBridgeEnabled()) {
++        // The HAL only records in metadata mode; the framework gets YUV.
++        status_t s = mDevice->ops->store_meta_data_in_buffers(mDevice, true);
++        if (s != OK) {
++            return getHidlStatus(s);
++        }
++        mBridgeMode = true;
++        mMetadataMode = false;
++        return enable ? Status::ILLEGAL_ARGUMENT : Status::OK;
++    }
+     if (mDevice->ops->store_meta_data_in_buffers) {
+         status_t s = mDevice->ops->store_meta_data_in_buffers(mDevice, enable);
+         if (s == OK && enable) {
+@@ -809,6 +980,9 @@ Return<Status> CameraDevice::startRecording() {
+         return Status::OPERATION_NOT_SUPPORTED;
+     }
+     if (mDevice->ops->start_recording) {
++        if (mBridgeMode) {
++            bridgeStartLocked();
++        }
+         return getHidlStatus(mDevice->ops->start_recording(mDevice));
+     }
+     return Status::ILLEGAL_ARGUMENT;
+@@ -824,6 +998,9 @@ Return<void> CameraDevice::stopRecording() {
+     if (mDevice->ops->stop_recording) {
+         mDevice->ops->stop_recording(mDevice);
+     }
++    if (mBridgeMode) {
++        bridgeStopLocked();
++    }
+     return Void();
+ }
+ 
+@@ -846,6 +1023,17 @@ void CameraDevice::releaseRecordingFrameLocked(
+         ALOGE("%s called while camera is not opened", __FUNCTION__);
+         return;
+     }
++    if (mBridgeMode) {
++        Mutex::Autolock _b(mBridgeLock);
++        if (mBridgeHeap != nullptr &&
++                memId == static_cast<CameraHeapMemory*>(mBridgeHeap->handle)->handle.mId) {
++            // Bridged YUV copy: the HAL buffer was already returned.
++            if (bufferIndex < mBridgeBusy.size()) {
++                mBridgeBusy[bufferIndex] = false;
++            }
++            return;
++        }
++    }
+     if (mDevice->ops->release_recording_frame) {
+         CameraHeapMemory* camMemory;
+         {
+diff --git a/camera/device/1.0-legacy/CameraDevice_1_0.h b/camera/device/1.0-legacy/CameraDevice_1_0.h
+index a8879d4..5c31785 100644
+--- a/camera/device/1.0-legacy/CameraDevice_1_0.h
++++ b/camera/device/1.0-legacy/CameraDevice_1_0.h
+@@ -18,6 +18,7 @@
+ #define ANDROID_HARDWARE_CAMERA_DEVICE_V1_0_CAMERADEVICE_H
+ 
+ #include <unordered_map>
++#include <vector>
+ #include "utils/Mutex.h"
+ #include "utils/SortedVector.h"
+ #include "CameraModule.h"
+@@ -171,6 +172,25 @@ private:
+ 
+     bool mMetadataMode = false;
+ 
++    // Samsung 4.2 HAL1 recording bridge (ro.camera.legacy.samsung_metadata_bridge).
++    // The HAL only records in its own 20-byte kMetadataBufferTypeCameraSource
++    // format, which 8.1 cannot pass to encoders. The bridge keeps the HAL in
++    // metadata mode, copies each NV12 frame into a YUV heap and hands that to
++    // the framework in plain YUV data-callback mode.
++    static bool sBridgeEnabled();
++    void bridgeStartLocked();
++    void bridgeStopLocked();
++    void bridgeFrame(nsecs_t timestamp, int32_t msgType, CameraHeapMemory* mem, unsigned index);
++    void* bridgeMapFd(int fd, size_t size);
++    bool mBridgeMode = false;
++    Mutex mBridgeLock;
++    camera_memory_t* mBridgeHeap = nullptr;
++    uint32_t mBridgeW = 0;
++    uint32_t mBridgeH = 0;
++    std::vector<bool> mBridgeBusy;
++    std::unordered_map<int, std::pair<void*, size_t>> mBridgeMaps;
++    bool mBridgeLogged = false;
++
+     mutable Mutex mBatchLock;
+     // Start of protection scope for mBatchLock
+     uint32_t mBatchSize = 0; // 0 for non-batch mode, set to other value to start batching

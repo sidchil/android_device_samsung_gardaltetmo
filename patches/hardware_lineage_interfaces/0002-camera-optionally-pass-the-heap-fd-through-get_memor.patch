@@ -1,0 +1,48 @@
+From 61a93e19382d0b16089cf178e6c998e02168692c Mon Sep 17 00:00:00 2001
+From: sidchil <sidc646@gmail.com>
+Date: Mon, 23 Nov 2026 08:13:42 +0000
+Subject: [PATCH 2/4] camera: optionally pass the heap fd through get_memory
+
+Change-Id: I41a6dfd5cfc23c5da24b2a22d1c3e1e484fc7fbc
+---
+ camera/device/1.0-legacy/CameraDevice.cpp | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/camera/device/1.0-legacy/CameraDevice.cpp b/camera/device/1.0-legacy/CameraDevice.cpp
+index 35d3006..f3fde0e 100644
+--- a/camera/device/1.0-legacy/CameraDevice.cpp
++++ b/camera/device/1.0-legacy/CameraDevice.cpp
+@@ -16,6 +16,7 @@
+ 
+ #define LOG_TAG "CamDev@1.0-impl.legacy"
+ #include <hardware/camera.h>
++#include <cutils/properties.h>
+ #include <hardware/gralloc1.h>
+ #include <hidlmemory/mapping.h>
+ #include <log/log.h>
+@@ -362,7 +363,7 @@ CameraDevice::CameraHeapMemory::~CameraHeapMemory() {
+ 
+ // shared memory methods
+ camera_memory_t* CameraDevice::sGetMemory(int fd, size_t buf_size, uint_t num_bufs,
+-        void *user __unused) {
++        void *user) {
+     ALOGV("%s", __FUNCTION__);
+     CameraDevice* object = sCameraDevice;
+     if (object->mDeviceCallback == nullptr) {
+@@ -388,6 +389,16 @@ camera_memory_t* CameraDevice::sGetMemory(int fd, size_t buf_size, uint_t num_bu
+         object->mMemoryMap[id] = mem;
+     }
+     mem->handle.mDevice = object;
++
++    // Samsung's 4.2 framework returned the heap fd through the "user"
++    // argument, and some Samsung HAL1s (e.g. T399 SecCameraHardware) check
++    // it (preview heap allocation fails with fd < 0). Opt-in per device.
++    static const bool sHeapFdToUser =
++            property_get_bool("ro.camera.legacy.heap_fd_to_user", false);
++    if (sHeapFdToUser && user != nullptr && mem->mHidlHandle != nullptr &&
++            mem->mHidlHandle->numFds > 0) {
++        *static_cast<int *>(user) = mem->mHidlHandle->data[0];
++    }
+     return &mem->handle;
+ }
+ 
