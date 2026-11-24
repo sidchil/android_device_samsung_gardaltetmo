@@ -1,3 +1,4 @@
+> **Note:** This README is left over from the Galaxy S5 mini (kminilte) device tree this repo is based on. This repo is for the Samsung Galaxy Light (SGH-T399, T-Mobile). The spec sheet, picture, and build steps below are for the S5 mini and don't apply to this device. Patches for other repos are in [patches](patches/README.md), and builds are in [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
 
 # Device configuration for Samsung Galaxy S5 mini SM-G800F (gardaltetmo)
 
