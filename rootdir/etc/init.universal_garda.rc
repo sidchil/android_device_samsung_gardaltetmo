@@ -116,6 +116,9 @@ on post-fs-data
     setprop wlan.driver.status not_ok
 
 on property:sys.boot_completed=1
+    # Keep all four cores online. Samsung's dynamic hotplug can lock up a core
+    # while bringing it back online; cpuidle still powers down idle cores.
+    write /sys/power/enable_dm_hotplug 0
     # Configure the CPU governor
     write /sys/devices/system/cpu/cpu1/online 1
     write /sys/devices/system/cpu/cpu2/online 1
