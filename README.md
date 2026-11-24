@@ -1,4 +1,28 @@
-> **Note:** This README is left over from the Galaxy S5 mini (kminilte) device tree this repo is based on. This repo is for the Samsung Galaxy Light (SGH-T399, T-Mobile). The spec sheet, picture, and build steps below are for the S5 mini and don't apply to this device. Patches for other repos are in [patches](patches/README.md), and builds are in [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
+# LineageOS 15.1 for the Samsung Galaxy Light (SGH-T399)
+
+Unofficial build of LineageOS 15.1 (Android 8.1) for the T-Mobile Galaxy Light (gardaltetmo). Download the latest build from [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
+
+## Working
+- Display, touch, hardware keys
+- Audio, microphone
+- Camera, video recording
+- Hardware video decoding
+- Wi-Fi, Bluetooth, sensors
+
+## Untested
+- Cellular: the modem starts but has not been tested with a T-Mobile SIM. There is no VoLTE support.
+- GPS: untested, likely does not work.
+- NFC: turns on, untested.
+
+## Installation
+1. Install TWRP using Odin or [Heimdall](https://github.com/Benjamin-Dobell/Heimdall). TWRP 2.8.4.0 by Unjustified Dev ([mirror](https://androidfilehost.com/?fid=24052804347800686))
+2. In TWRP, wipe System, Data, Cache.
+3. Flash the zip.
+4. Optional: flash OpenGApps pico (ARM, 8.1) before the first boot.
+
+---
+
+> **Note:** Everything below is left over from the Galaxy S5 mini (kminilte) device tree this repo is based on. This repo is for the Samsung Galaxy Light (SGH-T399, T-Mobile). The spec sheet, picture, and build steps below are for the S5 mini and don't apply to this device. Patches for other repos are in [patches](patches/README.md), and builds are in [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
 
 # Device configuration for Samsung Galaxy S5 mini SM-G800F (gardaltetmo)
 
