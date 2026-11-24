@@ -2,6 +2,8 @@
 
 Unofficial build of LineageOS 15.1 (Android 8.1) for the T-Mobile Galaxy Light (gardaltetmo). Download the latest build from [Releases](https://github.com/sidchil/android_device_samsung_gardaltetmo/releases).
 
+<img src="screenshots/07-phone.jpg" width="500">
+
 ## Working
 - Display, touch, hardware keys
 - Audio, microphone
@@ -19,6 +21,12 @@ Unofficial build of LineageOS 15.1 (Android 8.1) for the T-Mobile Galaxy Light (
 2. In TWRP, wipe System, Data, Cache.
 3. Flash the zip.
 4. Optional: flash OpenGApps pico (ARM, 8.1) before the first boot.
+
+## Screenshots
+
+<img src="screenshots/01-about-phone.png" width="200"> <img src="screenshots/02-home.png" width="200"> <img src="screenshots/03-app-drawer.png" width="200">
+
+<img src="screenshots/04-quick-settings.png" width="200"> <img src="screenshots/05-cpu-z.png" width="200"> <img src="screenshots/06-cpu-z-system.png" width="200">
 
 ---
 
